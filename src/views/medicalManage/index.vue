@@ -11,6 +11,8 @@ const searchForm = ref({
   doctorName: ''
 })
 
+const selectedRecord = ref({});
+
 onMounted(async () => {
   const res = await myAxios.get('/medical/list/all')
   if (res.code === 0) {
@@ -22,8 +24,22 @@ onMounted(async () => {
 
 })
 
-const visible = ref(false)
-const editingRecord = ref(null)
+const confirmMedicalForm = ref({
+  visible: false,
+  form: {
+    date: null,
+    type: '',
+    description: '',
+  }
+});
+
+const cancelMedicalForm = ref({
+  visible: false,
+  form: {
+    cancelReason: ''
+  }
+});
+
 
 const columns = [
   {title: '就诊编号', dataIndex: 'number', key: 'number'},
@@ -66,14 +82,26 @@ const treatmentTypes = [
   {label: '复查', value: 4}
 ]
 
-const handleEdit = (record) => {
-  editingRecord.value = {...record}
-  visible.value = true
+const handleConfirm = async () => {
+  const res = await myAxios.post('/medical/confirm', {...confirmMedicalForm.value.form, id: selectedRecord.value.id})
+  if (res.code === 0) {
+    message.success('确认成功')
+    confirmMedicalForm.value.visible = false;
+    window.location.reload()
+  } else {
+    message.error('确认失败')
+  }
 }
 
-const handleView = (record) => {
-  editingRecord.value = {...record}
-  visible.value = true
+const handleCancel = async () => {
+  const res = await myAxios.post('/medical/cancel', {...cancelMedicalForm.value.form, id: selectedRecord.value.id})
+  if (res.code === 0) {
+    message.success('取消成功')
+    cancelMedicalForm.value.visible = false;
+    window.location.reload()
+  } else {
+    message.error('取消失败')
+  }
 }
 
 // 搜索逻辑
@@ -118,27 +146,15 @@ const handleSearch = () => {
         item.doctor?.name?.toLowerCase().includes(searchDoctor)
     )
   }
-
   dataSource.value = filtered
 }
 
 const handleStatusChange = async (record, status) => {
+  selectedRecord.value = record;
   if (status === 'cancel') {
-    const res = await myAxios.post('/appointment/cancel', {record})
-    if (res.code === 0) {
-      message.success('取消成功')
-      handleSearch()
-    } else {
-      message.error('取消失败')
-    }
+    cancelMedicalForm.value.visible = true;
   } else if (status === 'confirm') {
-    const res = await myAxios.post('/appointment/confirm', {record})
-    if (res.code === 0) {
-      message.success('确认成功')
-      handleSearch()
-    } else {
-      message.error('确认失败')
-    }
+    confirmMedicalForm.value.visible = true;
   }
 }
 
@@ -193,11 +209,7 @@ const handleReset = () => {
 
         <template #action="{ record }">
           <a-space>
-            <a @click="handleView(record)">查看</a>
-            <a-divider type="vertical"/>
-            <a @click="handleEdit(record)">编辑</a>
-            <a-divider type="vertical"/>
-            <a-dropdown v-if="record.status === 'waiting' || record.status === 'in_progress'">
+            <a-dropdown v-if="record.status === 0">
               <a>
                 更多
                 <down-outlined/>
@@ -205,7 +217,6 @@ const handleReset = () => {
               <template #overlay>
                 <a-menu>
                   <a-menu-item
-                      v-if="record.status === 'in_progress'"
                       @click="handleStatusChange(record, 'confirm')"
                   >
                     完成就诊
@@ -220,6 +231,58 @@ const handleReset = () => {
         </template>
       </a-table>
     </a-card>
+    <a-modal
+        v-model:visible="confirmMedicalForm.visible"
+        title="完成就诊"
+        @ok="handleConfirm"
+        @cancel="() => {
+         confirmMedicalForm.visible = false;
+         confirmMedicalForm.form.date = '';
+         confirmMedicalForm.form.type = '';
+         confirmMedicalForm.form.description = ''
+        }"
+        cancel-text="取消"
+        ok-text="确定"
+    >
+      <a-form :model="confirmMedicalForm.form" layout="vertical">
+        <a-form-item label="就诊时间" name="date">
+          <a-date-picker
+              v-model:value="confirmMedicalForm.form.date"
+              show-time
+              format="YYYY-MM-DD HH:mm:ss"
+              style="width: 100%"
+              placeholder="请选择就诊时间"
+          />
+        </a-form-item>
+        <a-form-item label="就诊类型" name="type">
+          <a-select v-model:value="confirmMedicalForm.form.type" placeholder="请选择类型" style="width: 120px">
+            <a-select-option v-for="type in treatmentTypes" :key="type.value" :value="type.value">
+              {{ type.label }}
+            </a-select-option>
+          </a-select>
+        </a-form-item>
+        <a-form-item label="病症情况" name="description">
+          <a-input v-model:value="confirmMedicalForm.form.description" placeholder="请输入宠物病症情况"/>
+        </a-form-item>
+      </a-form>
+    </a-modal>
+    <a-modal
+        v-model:visible="cancelMedicalForm.visible"
+        title="取消就诊"
+        @ok="handleCancel"
+        @cancel="() => {
+          cancelMedicalForm.visible = false
+          cancelMedicalForm.form.cancelReason = ''
+        }"
+        cancel-text="取消"
+        ok-text="确定"
+    >
+      <a-form :model="cancelMedicalForm.form" layout="vertical">
+        <a-form-item label="取消原因" name="description">
+          <a-input v-model:value="cancelMedicalForm.form.cancelReason" placeholder="请输入取消就诊的原因"/>
+        </a-form-item>
+      </a-form>
+    </a-modal>
   </div>
 </template>
 

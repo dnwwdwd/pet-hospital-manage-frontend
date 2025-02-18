@@ -26,8 +26,14 @@ onMounted((async () => {
   }
 }))
 
-const visible = ref(false)
-const editingAppointment = ref(null)
+const cancelMedicalForm = ref({
+  visible: false,
+  form: {
+    cancelReason: ''
+  }
+})
+
+const selectedRecord = ref({})
 
 const columns = [
   {title: '预约编号', dataIndex: 'id', key: 'id'},
@@ -69,17 +75,11 @@ const appointmentTypes = [
   {label: '复查', value: 4}
 ]
 
-const timeSlots = Array.from({length: 8}, (_, i) => {
-  const hour = 9 + Math.floor(i / 2)
-  const minute = i % 2 === 0 ? '00' : '30'
-  const time = `${hour}:${minute}`
-  return {label: time, value: time}
-})
-
 const statusMap = {
   0: {text: '正在预约', color: 'orange'},
-  1: {text: '预约结束', color: 'green'},
-  2: {text: '预约被取消', color: 'red'}
+  1: {text: '预约成功', color: 'green'},
+  2: {text: '预约被取消', color: 'red'},
+  3: {text: '预约结束', color: 'yellow'}
 }
 
 const handleSearch = () => {
@@ -113,9 +113,15 @@ const handleSearch = () => {
   dataSource.value = filtered
 }
 
-const handleSave = () => {
-  // 实现保存逻辑
-  visible.value = false
+const handleCancel = async () => {
+  const res = await myAxios.post('/appoint/cancel', {...cancelMedicalForm.value.form, id: selectedRecord.value.id})
+  if (res.code === 0) {
+    message.success('取消成功')
+    cancelMedicalForm.value.visible = false;
+    window.location.reload()
+  } else {
+    message.error('取消失败')
+  }
 }
 
 // 重置时恢复原始数据
@@ -125,19 +131,14 @@ const handleReset = () => {
 }
 
 const handleStatusChange = async (record, status) => {
+  selectedRecord.value = record;
   if (status === 'cancel') {
-    const res = await myAxios.post('/appoint/cancel', {record})
-    if (res.code === 0) {
-      message.success('取消成功')
-      handleSearch()
-    } else {
-      message.error('取消失败')
-    }
+    cancelMedicalForm.value.visible = true
   } else if (status === 'confirm') {
-    const res = await myAxios.post('/appoint/confirm', {record})
+    const res = await myAxios.post('/appoint/confirm', {id: record.id})
     if (res.code === 0) {
-      handleSearch()
       message.success('确认成功')
+      window.location.reload()
     } else {
       message.error('确认失败')
     }
@@ -204,62 +205,24 @@ const handleStatusChange = async (record, status) => {
           </a-space>
         </template>
       </a-table>
-
-      <a-modal
-          v-model:visible="visible"
-          title="新增预约"
-          @ok="handleSave"
-          width="600px"
-      >
-        <a-form :label-col="{ span: 6 }" :wrapper-col="{ span: 16 }">
-          <a-form-item label="宠物名称">
-            <a-input v-model:value="editingAppointment.petName"/>
-          </a-form-item>
-          <a-form-item label="主人姓名">
-            <a-input v-model:value="editingAppointment.ownerName"/>
-          </a-form-item>
-          <a-form-item label="联系电话">
-            <a-input v-model:value="editingAppointment.phone"/>
-          </a-form-item>
-          <a-form-item label="预约日期">
-            <a-date-picker v-model:value="editingAppointment.date" style="width: 100%"/>
-          </a-form-item>
-          <a-form-item label="预约时间">
-            <a-select v-model:value="editingAppointment.time">
-              <a-select-option
-                  v-for="slot in timeSlots"
-                  :key="slot.value"
-                  :value="slot.value"
-              >
-                {{ slot.label }}
-              </a-select-option>
-            </a-select>
-          </a-form-item>
-          <a-form-item label="就诊类型">
-            <a-select v-model:value="editingAppointment.type">
-              <a-select-option
-                  v-for="type in appointmentTypes"
-                  :key="type.value"
-                  :value="type.value"
-              >
-                {{ type.label }}
-              </a-select-option>
-            </a-select>
-          </a-form-item>
-          <a-form-item label="主治医生">
-            <a-select v-model:value="editingAppointment.doctor">
-              <a-select-option
-                  v-for="doctor in doctors"
-                  :key="doctor.value"
-                  :value="doctor.value"
-              >
-                {{ doctor.label }}
-              </a-select-option>
-            </a-select>
-          </a-form-item>
-        </a-form>
-      </a-modal>
     </a-card>
+    <a-modal
+        v-model:visible="cancelMedicalForm.visible"
+        title="取消预约"
+        @ok="handleCancel"
+        @cancel="() => {
+          cancelMedicalForm.visible = false
+          cancelMedicalForm.form.cancelReason = ''
+        }"
+        cancel-text="取消"
+        ok-text="确定"
+    >
+      <a-form :model="cancelMedicalForm.form" layout="vertical">
+        <a-form-item label="取消原因" name="description">
+          <a-input v-model:value="cancelMedicalForm.form.cancelReason" placeholder="请输入取消预约的原因"/>
+        </a-form-item>
+      </a-form>
+    </a-modal>
   </div>
 </template>
 

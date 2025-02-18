@@ -1,5 +1,5 @@
 <script setup>
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 
 const searchForm = ref({
   name: '',
@@ -9,6 +9,7 @@ const searchForm = ref({
 
 const visible = ref(false)
 const editingCustomer = ref(null)
+const originalData = ref([])
 
 const columns = [
   { title: '客户姓名', dataIndex: 'name', key: 'name' },
@@ -49,29 +50,6 @@ const dataSource = ref([
   }
 ])
 
-const handleAdd = () => {
-  editingCustomer.value = {}
-  visible.value = true
-}
-
-const handleEdit = (record) => {
-  editingCustomer.value = { ...record }
-  visible.value = true
-}
-
-const handleDelete = (record) => {
-  dataSource.value = dataSource.value.filter(item => item.key !== record.key)
-}
-
-const handleSearch = () => {
-  // 实现搜索逻辑
-}
-
-const handleSave = () => {
-  // 实现保存逻辑
-  visible.value = false
-}
-
 // 消费记录表格列
 const consumptionColumns = [
   { title: '日期', dataIndex: 'date' },
@@ -96,6 +74,83 @@ const consumptionRecords = ref([
     paymentMethod: '支付宝'
   }
 ])
+
+// 初始化原始数据
+onMounted(() => {
+  originalData.value = [...dataSource.value]
+})
+
+const handleAdd = () => {
+  editingCustomer.value = {}
+  visible.value = true
+}
+
+const handleEdit = (record) => {
+  editingCustomer.value = { ...record }
+  visible.value = true
+}
+
+const handleDelete = (record) => {
+  dataSource.value = dataSource.value.filter(item => item.key !== record.key)
+  originalData.value = originalData.value.filter(item => item.key !== record.key)
+}
+
+const handleSearch = () => {
+  let filteredData = [...originalData.value]
+
+  // 客户姓名模糊搜索
+  if (searchForm.value.name) {
+    const searchName = searchForm.value.name.toLowerCase().trim()
+    filteredData = filteredData.filter(item =>
+        item.name?.toLowerCase().includes(searchName)
+    )
+  }
+
+  // 联系电话模糊搜索
+  if (searchForm.value.phone) {
+    const searchPhone = searchForm.value.phone.trim()
+    filteredData = filteredData.filter(item =>
+        item.phone?.includes(searchPhone)
+    )
+  }
+
+  // 宠物名称模糊搜索
+  if (searchForm.value.petName) {
+    const searchPet = searchForm.value.petName.toLowerCase().trim()
+    filteredData = filteredData.filter(item => {
+      const petInfo = item.pets?.toLowerCase() || ''
+      return petInfo.includes(searchPet) ||
+          petInfo.split('(').includes(searchPet)
+    })
+  }
+
+  dataSource.value = filteredData
+}
+
+const handleReset = () => {
+  searchForm.value = {
+    name: '',
+    phone: '',
+    petName: ''
+  }
+  dataSource.value = [...originalData.value]
+}
+
+const handleSave = () => {
+  // 新增/编辑保存逻辑
+  if (!editingCustomer.value.key) {
+    // 新增
+    const newKey = Date.now().toString()
+    dataSource.value = [...dataSource.value, { ...editingCustomer.value, key: newKey }]
+    originalData.value = [...originalData.value, { ...editingCustomer.value, key: newKey }]
+  } else {
+    // 编辑
+    const index = dataSource.value.findIndex(item => item.key === editingCustomer.value.key)
+    dataSource.value[index] = { ...editingCustomer.value }
+    originalData.value = [...dataSource.value]
+  }
+  visible.value = false
+}
 </script>
 
 <template>
@@ -114,7 +169,7 @@ const consumptionRecords = ref([
         </a-form-item>
         <a-form-item>
           <a-button type="primary" @click="handleSearch">搜索</a-button>
-          <a-button style="margin-left: 8px" @click="() => searchForm = {}">重置</a-button>
+          <a-button style="margin-left: 8px" @click="handleReset">重置</a-button>
         </a-form-item>
       </a-form>
 
@@ -123,17 +178,17 @@ const consumptionRecords = ref([
       </div>
 
       <a-table
-        :columns="columns"
-        :data-source="dataSource"
-        :scroll="{ x: 1300 }"
+          :columns="columns"
+          :data-source="dataSource"
+          :scroll="{ x: 1300 }"
       >
         <template #action="{ record }">
           <a-space>
             <a @click="handleEdit(record)">编辑</a>
             <a-divider type="vertical" />
             <a-popconfirm
-              title="确定要删除这条记录吗？"
-              @confirm="handleDelete(record)"
+                title="确定要删除这条记录吗？"
+                @confirm="handleDelete(record)"
             >
               <a style="color: #ff4d4f">删除</a>
             </a-popconfirm>
@@ -142,10 +197,10 @@ const consumptionRecords = ref([
       </a-table>
 
       <a-modal
-        v-model:visible="visible"
-        :title="editingCustomer?.key ? '编辑客户' : '新增客户'"
-        @ok="handleSave"
-        width="800px"
+          v-model:visible="visible"
+          :title="editingCustomer?.key ? '编辑客户' : '新增客户'"
+          @ok="handleSave"
+          width="800px"
       >
         <a-tabs>
           <a-tab-pane key="1" tab="基本信息">
@@ -171,9 +226,9 @@ const consumptionRecords = ref([
           </a-tab-pane>
           <a-tab-pane key="2" tab="消费记录">
             <a-table
-              :columns="consumptionColumns"
-              :data-source="consumptionRecords"
-              :pagination="false"
+                :columns="consumptionColumns"
+                :data-source="consumptionRecords"
+                :pagination="false"
             />
           </a-tab-pane>
         </a-tabs>

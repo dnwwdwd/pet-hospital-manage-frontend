@@ -1,9 +1,18 @@
 <script setup>
-// App.vue
+
+import {useRoute} from "vue-router";
+import {computed} from "vue";
+import BasicLayout from "./layouts/BasicLayout.vue";
+
+const route = useRoute();
+
+// 判断当前路径是否包含 /user
+const isUserRoute = computed(() => route.path.includes('/user'));
 </script>
 
 <template>
-  <router-view></router-view>
+  <router-view v-if="isUserRoute" />
+  <BasicLayout v-else/>
 </template>
 
 <style>

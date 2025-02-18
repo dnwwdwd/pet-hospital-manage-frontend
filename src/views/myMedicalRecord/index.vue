@@ -93,7 +93,7 @@ const columns = [
     title: '状态',
     dataIndex: 'status',
     key: 'status',
-    slots: { customRender: 'status' } // 使用插槽渲染状态
+    slots: {customRender: 'status'} // 使用插槽渲染状态
   }
 ];
 

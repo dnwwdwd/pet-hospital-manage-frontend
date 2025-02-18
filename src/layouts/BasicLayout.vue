@@ -1,6 +1,6 @@
 <script setup>
-import {ref, watch} from 'vue'
-import {useRouter, useRoute} from 'vue-router'
+import { computed, onMounted, ref, watch } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
 import {
   HomeOutlined,
   PieChartOutlined,
@@ -12,86 +12,126 @@ import {
   DownOutlined,
   ExperimentOutlined
 } from '@ant-design/icons-vue'
+import myAxios from "../plugins/myAxios.js";
+import { message } from "ant-design-vue";
 
 const router = useRouter()
 const route = useRoute()
 const collapsed = ref(false)
+const user = ref({});
 
-// 响应式的 selectedKeys 用于绑定到菜单
-const selectedKeys = ref([route.name || ''])
-
+// 菜单项配置
 const menuItems = [
   {
-    key: 'dashboard',
-    icon: HomeOutlined, // 直接传入组件
+    key: 'home',
+    icon: HomeOutlined,
     label: '首页',
-    path: '/'
+    path: '/',
+    permission: 'admin'
   },
   {
-    key: 'pets',
-    icon: HeartOutlined, // 直接传入组件
+    key: 'sicknessManage',
+    icon: HeartOutlined,
     label: '病史管理',
-    path: '/petsManage'
+    path: '/sicknessManage',
+    permission: 'admin',
   },
   {
     key: 'customersManage',
-    icon: TeamOutlined, // 直接传入组件
+    icon: TeamOutlined,
     label: '客户管理',
-    path: '/customersManage'
+    path: '/customersManage',
+    permission: 'admin'
   },
   {
     key: 'appointmentsManage',
-    icon: CalendarOutlined, // 直接传入组件
+    icon: CalendarOutlined,
     label: '预约管理',
-    path: '/appointmentsManage'
+    path: '/appointmentsManage',
+    permission: 'admin'
   },
   {
     key: 'medicalManage',
-    icon: MedicineBoxOutlined, // 直接传入组件
+    icon: MedicineBoxOutlined,
     label: '就诊管理',
-    path: '/medicalManage'
+    path: '/medicalManage',
+    permission: 'admin'
   },
   {
     key: 'doctorManage',
-    icon: ExperimentOutlined, // 直接传入组件
+    icon: ExperimentOutlined,
     label: '医生管理',
-    path: '/doctorManage'
+    path: '/doctorManage',
+    permission: 'admin'
   },
   {
     key: 'statistics',
-    icon: PieChartOutlined, // 直接传入组件
+    icon: PieChartOutlined,
     label: '统计报表',
-    path: '/statistics'
-  },
-  {
-    key: 'messages',
-    icon: BellOutlined, // 直接传入组件
-    label: '消息通知',
-    path: '/messages'
+    path: '/statistics',
+    permission: 'admin'
   },
   {
     key: 'appointment',
-    icon: CalendarOutlined, // 直接传入组件
+    icon: CalendarOutlined,
     label: '预约看病',
-    path: '/appointment'
+    path: '/appointment',
+    permission: 'user'
   },
   {
     key: 'myAppointment',
-    icon: CalendarOutlined, // 直接传入组件
+    icon: CalendarOutlined,
     label: '我的预约',
-    path: '/myAppointment'
+    path: '/myAppointment',
+    permission: 'user'
   },
   {
     key: 'medicalRecord',
-    icon: MedicineBoxOutlined, // 直接传入组件
+    icon: MedicineBoxOutlined,
     label: '就诊记录',
-    path: '/medicalRecord'
+    path: '/medicalRecord',
+    permission: 'admin'
+  },
+  {
+    key: 'µmyMedicalRecord',
+    icon: MedicineBoxOutlined,
+    label: '我的就诊',
+    path: '/myMedicalRecord',
+    permission: 'user'
+  },
+  {
+    key: 'mySickness',
+    icon: HeartOutlined,
+    label: '我的病史',
+    path: '/mySickness',
+    permission: 'user',
   },
 ]
 
-// 监听路由变化，更新 selectedKeys
-watch(() => route.name, (newName) => {
-  selectedKeys.value = [newName || '']
+// 过滤后的菜单项
+const filteredMenuItems = computed(() => {
+  return menuItems.filter(item => item.permission === user.value.userRole)
+})
+
+onMounted(async () => {
+  const menuItem = menuItems.find(item => item.path === route.path)
+  if (menuItem) {
+    selectedKeys.value = [menuItem.key]
+  }
+  const res = await myAxios.get('/user/get/login')
+  if (!res.data) {
+    router.push('/user/login')
+  }
+  user.value = res.data
+})
+
+// 菜单选中逻辑
+const selectedKeys = ref([route.name || ''])
+watch(() => route.path, (newPath) => {
+  const menuItem = menuItems.find(item => item.path === newPath)
+  if (menuItem) {
+    selectedKeys.value = [menuItem.key]
+  }
 })
 
 const handleMenuClick = (item) => {
@@ -112,7 +152,7 @@ const handleMenuClick = (item) => {
           mode="inline"
           @click="handleMenuClick"
       >
-        <a-menu-item v-for="item in menuItems" :key="item.key">
+        <a-menu-item v-for="item in filteredMenuItems" :key="item.key">
           <template #icon>
             <component :is="item.icon"/>
           </template>
@@ -124,22 +164,25 @@ const handleMenuClick = (item) => {
       <a-layout-header style="background: #fff; padding: 0">
         <a-row justify="end" :style="{ paddingRight: '24px' }">
           <a-space>
-            <a-badge :count="5">
-              <a-button type="text">
-                <template #icon>
-                  <BellOutlined/>
-                </template>
-              </a-button>
-            </a-badge>
+            <a-avatar
+                shape="circle"
+                :src="user.userAvatar"
+            />
             <a-dropdown>
               <a-button type="text">
-                管理员
+                {{ user.userName }}
                 <DownOutlined/>
               </a-button>
               <template #overlay>
                 <a-menu>
                   <a-menu-item>个人设置</a-menu-item>
-                  <a-menu-item>退出登录</a-menu-item>
+                  <a-menu-item @click="async () => {
+                    const res = await myAxios.post('user/logout')
+                    if (res.code === 0) {
+                      message.success('退出登录成功')
+                      router.push('/user/login')
+                    }
+                  }">退出登录</a-menu-item>
                 </a-menu>
               </template>
             </a-dropdown>
